@@ -1,9 +1,48 @@
-podTemplate(label: BUILD_TAG, containers: [containerTemplate(name: 'maven', image: 'maven', command: 'sleep', args: 'infinity')]) {
-  node(BUILD_TAG) {
-    checkout scm
-    container('maven') {
-      sh 'mvn -B -ntp -Dmaven.test.failure.ignore verify'
+pipeline {
+    agent any
+    tools {
+        maven 'maven3'
     }
-    junit '**/target/surefire-reports/TEST-*.xml'
-  }
+    stages {
+        stage('Build') {
+            steps {
+                
+                sh "mvn -DskipTests clean package"
+            }
+            post {
+                success {
+                    archiveArtifacts 'target/*.jar'
+                }
+            }
+        }
+        stage('Check&Test') {
+            parallel {
+        stage('Test') {
+            steps {
+                sh "mvn test -Dmaven.test.failure.ignore=true"
+            }
+            post {
+                success {
+                    junit '**/target/surefire-reports/TEST-*.xml'
+                }
+            }
+        }
+        stage('PMD') {
+            steps {
+               sh "mvn pmd:pmd"
+            }
+            post {
+                always {
+                    recordIssues(tools: [pmdParser()])
+                }
+            }
+        }
+        }
+        }
+        stage('Deliver') {
+            steps {
+                sh 'echo here is deliver' 
+            }
+        }
+    }
 }
